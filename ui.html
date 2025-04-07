@@ -1,0 +1,252 @@
+<style>
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    margin: 0;
+    padding: 16px;
+    box-sizing: border-box;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    color: var(--figma-color-text);
+    background-color: var(--figma-color-bg);
+  }
+  
+  h2 {
+    margin-top: 0;
+    margin-bottom: 16px;
+    font-size: 16px;
+    font-weight: 600;
+  }
+  
+  .container {
+    display: flex;
+    flex-direction: column;
+    flex-grow: 1;
+  }
+  
+  .button-row {
+    display: flex;
+    margin-bottom: 12px;
+    gap: 8px;
+  }
+  
+  button {
+    background-color: var(--figma-color-bg-secondary);
+    color: var(--figma-color-text);
+    border: 1px solid var(--figma-color-border);
+    border-radius: 6px;
+    padding: 6px 12px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: background-color 0.1s ease;
+  }
+  
+  button:hover {
+    background-color: var(--figma-color-bg-hover);
+  }
+  
+  button:active {
+    background-color: var(--figma-color-bg-pressed);
+  }
+  
+  button#copy {
+    background-color: var(--figma-color-bg-brand);
+    color: var(--figma-color-text-oninverse);
+    border-color: transparent;
+  }
+  
+  button#copy:hover {
+    background-color: var(--figma-color-bg-brand-hover);
+  }
+  
+  .options-row {
+    display: flex;
+    align-items: center;
+    margin-bottom: 12px;
+    font-size: 12px;
+  }
+  
+  .checkbox-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  
+  input[type="checkbox"] {
+    margin: 0;
+  }
+  
+  textarea {
+    flex-grow: 1;
+    min-height: 200px;
+    width: 100%;
+    font-family: 'SF Mono', SFMono-Regular, ui-monospace, 'DejaVu Sans Mono', Menlo, Consolas, monospace;
+    resize: none;
+    border: 1px solid var(--figma-color-border);
+    border-radius: 6px;
+    padding: 8px;
+    background-color: var(--figma-color-bg);
+    color: var(--figma-color-text);
+  }
+  
+  #resize-handle {
+    position: absolute;
+    right: 1px;
+    bottom: 2px;
+    width: 16px;
+    height: 16px;
+    cursor: nwse-resize;
+  }
+  
+  .loading {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(var(--figma-color-bg-rgb), 0.8);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-direction: column;
+    gap: 12px;
+    z-index: 100;
+  }
+  
+  .spinner {
+    animation: spin 1.5s linear infinite;
+    width: 24px;
+    height: 24px;
+  }
+  
+  @keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+</style>
+
+<h2>Recursive Layer Names</h2>
+<div class="container">
+  <div class="button-row">
+    <button id="refresh">Refresh Selection</button>
+    <button id="copy">Copy to Clipboard</button>
+    <button id="close">Close</button>
+  </div>
+  <div class="options-row">
+    <div class="checkbox-wrapper">
+      <input type="checkbox" id="jsonFormat">
+      <label for="jsonFormat">JSON Format</label>
+    </div>
+    <div class="checkbox-wrapper" style="margin-left: 12px;">
+      <input type="checkbox" id="simpleNamesOnly">
+      <label for="simpleNamesOnly">Simple names only</label>
+    </div>
+  </div>
+  <textarea id="layerNames" readonly></textarea>
+</div>
+
+<!-- Resize handle -->
+<svg id="resize-handle" width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <path d="M16 0V16H0L16 0Z" fill="var(--figma-color-bg)"/>
+  <path d="M6.22577 16H3L16 3V6.22576L6.22577 16Z" fill="var(--figma-color-border)"/>
+  <path d="M11.8602 16H8.63441L16 8.63441V11.8602L11.8602 16Z" fill="var(--figma-color-border)"/>
+</svg>
+
+<!-- Loading overlay (hidden by default) -->
+<div id="loading" class="loading" style="display: none;">
+  <svg class="spinner" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="12" cy="12" r="10" stroke="var(--figma-color-icon-secondary)" stroke-width="3" stroke-linecap="round" stroke-opacity="0.25"></circle>
+    <path d="M12 2C6.47715 2 2 6.47715 2 12" stroke="var(--figma-color-icon)" stroke-width="3" stroke-linecap="round"></path>
+  </svg>
+  <span>Processing layers...</span>
+</div>
+
+<script>
+let currentTextData = '';
+let currentJsonData = '';
+let currentSimpleTextData = '';
+
+document.getElementById('refresh').onclick = () => {
+  showLoading(true);
+  parent.postMessage({ pluginMessage: { type: 'refresh-selection' } }, '*');
+}
+
+document.getElementById('copy').onclick = () => {
+  const textarea = document.getElementById('layerNames');
+  textarea.select();
+  document.execCommand('copy');
+}
+
+document.getElementById('close').onclick = () => {
+  parent.postMessage({ pluginMessage: { type: 'close' } }, '*');
+}
+
+document.getElementById('jsonFormat').onchange = updateTextareaContent;
+document.getElementById('simpleNamesOnly').onchange = updateTextareaContent;
+
+function updateTextareaContent() {
+  const useJson = document.getElementById('jsonFormat').checked;
+  const useSimpleNames = document.getElementById('simpleNamesOnly').checked;
+  const textarea = document.getElementById('layerNames');
+  
+  if (useJson) {
+    textarea.value = currentJsonData;
+  } else if (useSimpleNames) {
+    textarea.value = currentSimpleTextData;
+  } else {
+    textarea.value = currentTextData;
+  }
+}
+
+// Resize functionality
+const resizeHandle = document.getElementById('resize-handle');
+
+function resizeWindow(e) {
+  const size = {
+    w: Math.max(300, Math.floor(e.clientX + 10)),
+    h: Math.max(200, Math.floor(e.clientY + 10))
+  };
+  parent.postMessage({ pluginMessage: { type: 'resize', size: size }}, '*');
+}
+
+resizeHandle.onpointerdown = (e) => {
+  resizeHandle.onpointermove = resizeWindow;
+  resizeHandle.setPointerCapture(e.pointerId);
+};
+
+resizeHandle.onpointerup = (e) => {
+  resizeHandle.onpointermove = null;
+  resizeHandle.releasePointerCapture(e.pointerId);
+};
+
+function showLoading(visible) {
+  document.getElementById('loading').style.display = visible ? 'flex' : 'none';
+}
+
+// Handle incoming messages from the plugin code
+window.onmessage = (event) => {
+  const message = event.data.pluginMessage;
+  
+  if (message.type === 'selection-data') {
+    currentTextData = message.text;
+    currentJsonData = message.json;
+    currentSimpleTextData = message.simpleText || '';
+    
+    updateTextareaContent();
+    showLoading(false);
+  } else if (message.type === 'processing-started') {
+    // Clear previous data when a new selection is being processed
+    if (message.clearData) {
+      currentTextData = 'Processing...';
+      currentJsonData = '';
+      currentSimpleTextData = '';
+      const textarea = document.getElementById('layerNames');
+      textarea.value = currentTextData;
+    }
+    showLoading(true);
+  } else if (message.type === 'processing-complete') {
+    showLoading(false);
+  }
+};
+</script>
