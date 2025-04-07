@@ -1,40 +1,94 @@
-Below are the steps to get your plugin running. You can also find instructions at:
+# Figma Recursive Layer Names
 
-  https://www.figma.com/plugin-docs/plugin-quickstart-guide/
+A Figma plugin that provides a hierarchical view of selected layers and their children. This plugin makes it easy to copy layer names with their complete hierarchy or simple structure for documentation, handoff, or reference purposes.
 
-This plugin template uses Typescript and NPM, two standard tools in creating JavaScript applications.
+## Features
 
-First, download Node.js which comes with NPM. This will allow you to install TypeScript and other
-libraries. You can find the download link here:
+- **Recursive Layer Traversal**: Lists all selected layers and recursively shows their children
+- **Multiple Output Formats**:
+  - Full Paths: Shows complete hierarchical paths of each layer
+  - Simple Names: Shows only the layer names without parent paths
+  - JSON Format: Structured data format including layer IDs, types, and hierarchy
+- **Cycle Detection**: Avoids infinite loops with automatic cycle detection
+- **Copy to Clipboard**: One-click copy of the entire layer hierarchy
+- **Live Updates**: Automatically updates when selection changes
+- **Resizable Interface**: Adjust the plugin window size to your needs
+- **Performance Optimized**: Handles large layer structures efficiently with batch processing
 
-  https://nodejs.org/en/download/
+## How to Use
 
-Next, install TypeScript using the command:
+1. Select one or more layers in your Figma design
+2. Run the "Recursive Layer Names" plugin
+3. View the hierarchical structure of your selection
+4. Choose your preferred format:
+   - Default: Full hierarchical paths
+   - Simple names only: Just the node names without parent paths
+   - JSON Format: Structured data for programmatic use
+5. Click "Copy to Clipboard" to copy the content
+6. Use the resize handle in the bottom-right corner to adjust the window size
 
-  npm install -g typescript
+## Example Output
 
-Finally, in the directory of your plugin, get the latest type definitions for the plugin API by running:
+### Full Paths (Default)
+```
+Frame 1
+  Frame 1 / Button
+    Frame 1 / Button / Label
+    Frame 1 / Button / Icon
+  Frame 1 / Content
+    Frame 1 / Content / Title
+    Frame 1 / Content / Description
+```
 
-  npm install --save-dev @figma/plugin-typings
+### Simple Names
+```
+Frame 1
+  Button
+    Label
+    Icon
+  Content
+    Title
+    Description
+```
 
-If you are familiar with JavaScript, TypeScript will look very familiar. In fact, valid JavaScript code
-is already valid Typescript code.
+### JSON Format
+```json
+[
+  {
+    "id": "1:2",
+    "name": "Frame 1",
+    "type": "FRAME",
+    "path": "Frame 1",
+    "level": 0,
+    "children": [
+      {
+        "id": "1:3",
+        "name": "Button",
+        "type": "INSTANCE",
+        "path": "Frame 1 / Button",
+        "level": 1,
+        "children": [...]
+      },
+      ...
+    ]
+  }
+]
+```
 
-TypeScript adds type annotations to variables. This allows code editors such as Visual Studio Code
-to provide information about the Figma API while you are writing code, as well as help catch bugs
-you previously didn't notice.
+## Development Tips
 
-For more information, visit https://www.typescriptlang.org/
+### Setup
+1. Clone the repository
+2. Run `npm install` to install dependencies
+3. Run `npm run build` to compile TypeScript files
+4. Or use `npm run watch` to automatically recompile on changes
 
-Using TypeScript requires a compiler to convert TypeScript (code.ts) into JavaScript (code.js)
-for the browser to run.
+### Project Structure
 
-We recommend writing TypeScript code using Visual Studio code:
+- **code.ts**: Main plugin code that handles selection processing and UI communication
+- **ui.html**: UI implementation with styles, buttons, and result display
+- **manifest.json**: Plugin configuration file
 
-1. Download Visual Studio Code if you haven't already: https://code.visualstudio.com/.
-2. Open this directory in Visual Studio Code.
-3. Compile TypeScript to JavaScript: Run the "Terminal > Run Build Task..." menu item,
-    then select "npm: watch". You will have to do this again every time
-    you reopen Visual Studio Code.
 
-That's it! Visual Studio Code will regenerate the JavaScript file every time you save.
+
+For more information on Figma plugin development, visit the [Figma Plugin Documentation](https://www.figma.com/plugin-docs/).
