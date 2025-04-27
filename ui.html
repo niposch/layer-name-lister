@@ -61,16 +61,34 @@
   }
   
   .options-row {
-    display: flex;
-    align-items: center;
+    display: grid;
     margin-bottom: 12px;
     font-size: 12px;
+    gap: 12px;
+    /* allow cells to shrink below content width */
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
-  
+  @media (max-width: 559px) {
+    .options-row {
+      /* shrink better in small view */
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
   .checkbox-wrapper {
     display: flex;
     align-items: center;
     gap: 6px;
+   /* allow shrink */
+   min-width: 0;
+  }
+
+  /* truncate long labels */
+  .checkbox-wrapper label {
+    /* overflow: hidden; */
+    /* text-overflow: clip; */
+    overflow-wrap: break-word;
+    /* white-space: nowrap; */
   }
   
   input[type="checkbox"] {
@@ -79,7 +97,6 @@
   
   textarea {
     flex-grow: 1;
-    min-height: 200px;
     width: 100%;
     font-family: 'SF Mono', SFMono-Regular, ui-monospace, 'DejaVu Sans Mono', Menlo, Consolas, monospace;
     resize: none;
@@ -138,9 +155,17 @@
       <input type="checkbox" id="jsonFormat">
       <label for="jsonFormat">JSON Format</label>
     </div>
-    <div class="checkbox-wrapper" style="margin-left: 12px;">
-      <input type="checkbox" id="simpleNamesOnly">
+    <div class="checkbox-wrapper">
+      <input type="checkbox" id="simpleNamesOnly" checked>
       <label for="simpleNamesOnly">Simple names only</label>
+    </div>
+    <div class="checkbox-wrapper">
+      <input type="checkbox" id="includeText" checked>
+      <label for="includeText">Include text content</label>
+    </div>
+    <div class="checkbox-wrapper">
+      <input type="checkbox" id="hideHidden" checked>
+      <label for="hideHidden">Hide hidden nodes</label>
     </div>
   </div>
   <textarea id="layerNames" readonly></textarea>
@@ -163,14 +188,21 @@
 </div>
 
 <script>
-let currentTextData = '';
-let currentJsonData = '';
-let currentSimpleTextData = '';
-
-document.getElementById('refresh').onclick = () => {
+// Helper to post a refresh-selection message with current settings
+function refreshSelection() {
   showLoading(true);
-  parent.postMessage({ pluginMessage: { type: 'refresh-selection' } }, '*');
+  parent.postMessage({ pluginMessage: {
+    type: 'refresh-selection',
+    ...getOptions()
+    }}, '*');
 }
+
+// Attach refreshSelection to controls
+document.getElementById('includeText').onchange = refreshSelection;
+document.getElementById('hideHidden').onchange = refreshSelection;
+document.getElementById('refresh').onclick = refreshSelection;
+document.getElementById('jsonFormat').onchange = refreshSelection
+document.getElementById('simpleNamesOnly').onchange = refreshSelection
 
 document.getElementById('copy').onclick = () => {
   const textarea = document.getElementById('layerNames');
@@ -182,21 +214,21 @@ document.getElementById('close').onclick = () => {
   parent.postMessage({ pluginMessage: { type: 'close' } }, '*');
 }
 
-document.getElementById('jsonFormat').onchange = updateTextareaContent;
-document.getElementById('simpleNamesOnly').onchange = updateTextareaContent;
-
 function updateTextareaContent() {
   const useJson = document.getElementById('jsonFormat').checked;
   const useSimpleNames = document.getElementById('simpleNamesOnly').checked;
   const textarea = document.getElementById('layerNames');
   
+  let dataToShow = '';
   if (useJson) {
-    textarea.value = currentJsonData;
+    dataToShow = currentJsonData;
   } else if (useSimpleNames) {
-    textarea.value = currentSimpleTextData;
+    dataToShow = currentSimpleTextData;
   } else {
-    textarea.value = currentTextData;
+    dataToShow = currentTextData;
   }
+  
+  textarea.value = dataToShow;
 }
 
 // Resize functionality
@@ -205,7 +237,7 @@ const resizeHandle = document.getElementById('resize-handle');
 function resizeWindow(e) {
   const size = {
     w: Math.max(300, Math.floor(e.clientX + 10)),
-    h: Math.max(200, Math.floor(e.clientY + 10))
+    h: Math.max(300, Math.floor(e.clientY + 10))
   };
   parent.postMessage({ pluginMessage: { type: 'resize', size: size }}, '*');
 }
@@ -249,4 +281,17 @@ window.onmessage = (event) => {
     showLoading(false);
   }
 };
+
+// after the plugin is loaded, refresh the selection
+refreshSelection();
+
+
+function getOptions(){
+  return {
+    includeText: document.getElementById('includeText').checked,
+    hideHidden: document.getElementById('hideHidden').checked,
+    simpleNamesOnly: document.getElementById('simpleNamesOnly').checked
+  }
+}
+
 </script>

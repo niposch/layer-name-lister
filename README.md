@@ -1,4 +1,4 @@
-# Figma Recursive Layer Names
+# Figma Layer Name Lister Plugin
 
 A Figma plugin that provides a hierarchical view of selected layers and their children. This plugin makes it easy to copy layer names with their complete hierarchy or simple structure for documentation, handoff, or reference purposes.
 

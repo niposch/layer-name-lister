@@ -22,6 +22,8 @@ interface LayerNodeJson {
   path: string;
   level: number;
   children: LayerNodeJson[];
+  text?: string;
+  visible: boolean;
 }
 
 // Function to get the full path of a node
@@ -44,14 +46,21 @@ async function processNodesBatch(
   level: number,
   textResult: string[],
   simpleTextResult: string[],
-  jsonResults: LayerNodeJson[]
+  jsonResults: LayerNodeJson[],
+  options: GenerationOptions
 ): Promise<{ textResult: string[], simpleTextResult: string[], jsonResult: LayerNodeJson[] }> {
   // Process only a small batch at a time to prevent UI freezing
   const BATCH_SIZE = 50;
   
   for (let i = 0; i < Math.min(BATCH_SIZE, nodes.length); i++) {
     const node = nodes[i];
-    
+    // Skip hidden nodes if the option is enabled
+    if (options.hideHidden && !node.visible) {
+      continue;
+    }
+
+    const textVal = node.type === 'TEXT' ? (node as TextNode).characters : '';
+
     // Check if we've already processed this node to prevent infinite recursion
     if (processedNodes.has(node.id)) {
       const warningMsg = `${' '.repeat(level * 2)}⚠️ Cycle detected: ${node.name} (already processed)`;
@@ -63,11 +72,11 @@ async function processNodesBatch(
     // Mark this node as processed
     processedNodes.add(node.id);
     
-    // Add this node to the text results
+    // Add this node to the text results, include text content if enabled
     const indent = '  '.repeat(level);
     const fullPath = getNodePath(node);
-    textResult.push(`${indent}${fullPath}`);
-    simpleTextResult.push(`${indent}${node.name}`);
+    textResult.push(`${indent}${fullPath}${options.includeText && textVal ? `: ${textVal}` : ''}`);
+    simpleTextResult.push(`${indent}${node.name}${options.includeText && textVal ? `: ${textVal}` : ''}`);
     
     // Prepare node for JSON output
     const jsonNode: LayerNodeJson = {
@@ -76,7 +85,9 @@ async function processNodesBatch(
       type: node.type,
       path: fullPath,
       level,
-      children: []
+      visible: node.visible,
+      children: [],
+      text: textVal
     };
     
     jsonResults.push(jsonNode);
@@ -90,7 +101,8 @@ async function processNodesBatch(
         level + 1,
         textResult,
         simpleTextResult,
-        jsonNode.children
+        jsonNode.children,
+        options
       );
     }
   }
@@ -106,7 +118,8 @@ async function processNodesBatch(
           level,
           textResult,
           simpleTextResult,
-          jsonResults
+          jsonResults,
+          options
         );
         resolve(result);
       }, 0);
@@ -117,7 +130,7 @@ async function processNodesBatch(
 }
 
 // Function to process the current selection and send to UI
-async function processSelection() {
+async function processSelection(options: GenerationOptions) {
   const selection = figma.currentPage.selection;
   
   // Notify UI that processing has started and clear previous results
@@ -153,7 +166,8 @@ async function processSelection() {
         0,
         [],
         [],
-        []
+        [],
+        options
       );
       
       allLayers = allLayers.concat(result.textResult);
@@ -172,11 +186,13 @@ async function processSelection() {
     });
   } catch (error) {
     console.error("Error processing selection:", error);
+    // Safely extract error message
+    const message = error instanceof Error ? error.message : String(error);
     figma.ui.postMessage({
       type: 'selection-data',
-      text: `Error processing selection: ${error.message}`,
-      simpleText: `Error processing selection: ${error.message}`,
-      json: JSON.stringify({ error: error.message })
+      text: `Error processing selection: ${message}`,
+      simpleText: `Error processing selection: ${message}`,
+      json: JSON.stringify({ error: message })
     });
   } finally {
     // Notify UI that processing is complete
@@ -186,18 +202,37 @@ async function processSelection() {
   }
 }
 
-// Process initial selection
-processSelection();
 
 // Listen for selection changes
-figma.on('selectionchange', () => {
-  processSelection();
-});
+figma.on('selectionchange', () => processSelection(optionsCache));
+
+
+// Define types for messages received from the UI
+type UIMessage =
+  | { type: 'refresh-selection'; } & GenerationOptions
+  | { type: 'close' }
+  | { type: 'resize'; size: { w: number; h: number } };
+
+interface GenerationOptions {
+  simpleNamesOnly?: boolean;
+  includeText?: boolean; 
+  hideHidden?: boolean;
+}
+
+let optionsCache: GenerationOptions = {
+  simpleNamesOnly: true,
+  includeText: true,
+  hideHidden: true
+};
+
+
 
 // Handle messages from the UI
-figma.ui.onmessage = (msg) => {
+figma.ui.onmessage = (msg: UIMessage) => {
   if (msg.type === 'refresh-selection') {
-    processSelection();
+    // Update includeText setting if provided
+    optionsCache = {...optionsCache, ...msg};
+    processSelection(msg);
   } else if (msg.type === 'close') {
     figma.closePlugin();
   } else if (msg.type === 'resize') {
